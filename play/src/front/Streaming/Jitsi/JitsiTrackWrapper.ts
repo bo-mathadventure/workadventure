@@ -1,6 +1,7 @@
 // eslint-disable-next-line import/no-unresolved
 import JitsiTrack from "lib-jitsi-meet/types/hand-crafted/modules/RTC/JitsiTrack";
 import { Readable, Unsubscriber, writable, Writable, readable } from "svelte/store";
+import { Subscription } from "rxjs";
 import { SoundMeter } from "../../Phaser/Components/SoundMeter";
 import { SpaceUserExtended } from "../../Space/Space";
 import { highlightedEmbedScreen } from "../../Stores/HighlightedEmbedScreenStore";
@@ -14,11 +15,16 @@ export class JitsiTrackWrapper implements TrackWrapper {
     private _audioStreamStore: Writable<MediaStream | null> = writable<MediaStream | null>(null);
     private readonly _volumeStore: Readable<number[] | undefined> | undefined;
     private volumeStoreSubscribe: Unsubscriber | undefined;
+    private spaceUserUpdateSubscribe: Subscription | undefined;
     public readonly isLocal: boolean;
 
-    constructor(readonly participantId: string, jitsiTrack: JitsiTrack) {
-        this.setJitsiTrack(jitsiTrack);
-        this.isLocal = jitsiTrack.isLocal();
+    constructor(readonly participantId: string, jitsiTrack: JitsiTrack | undefined, readonly jitsiRoomName: string) {
+        if (jitsiTrack) {
+            this.setJitsiTrack(jitsiTrack);
+            this.isLocal = jitsiTrack.isLocal();
+        } else {
+            this.isLocal = false;
+        }
         this._volumeStore = readable<number[] | undefined>(undefined, (set) => {
             if (this.volumeStoreSubscribe) {
                 this.volumeStoreSubscribe();
@@ -186,7 +192,7 @@ export class JitsiTrackWrapper implements TrackWrapper {
 
     set spaceUser(value: SpaceUserExtended | undefined) {
         this._spaceUser = value;
-        this._spaceUser?.updateSubject.subscribe((event) => {
+        this.spaceUserUpdateSubscribe = this._spaceUser?.updateSubject.subscribe((event) => {
             if (event.changes.screenSharingState) {
                 // This is the only reliable way to know if the screen sharing is active or not
                 // Indeed, if the user stops the screen sharing using the "Stop sharing" button in the OS, the screen sharing track is not removed
@@ -221,10 +227,37 @@ export class JitsiTrackWrapper implements TrackWrapper {
         this.screenSharingTrackWrapper.setVideoTrack(undefined);
         this.screenSharingTrackWrapper.setAudioTrack(undefined);
         this._audioStreamStore.set(null);
+        this.spaceUserUpdateSubscribe?.unsubscribe();
         this._spaceUser = undefined;
     }
 
     public isEmpty(): boolean {
         return this.cameraTrackWrapper.isEmpty() && this.screenSharingTrackWrapper.isEmpty();
+    }
+
+    public kickoff() {
+        this.spaceUser?.roomConnection?.emitKickOffUserMessage(this.spaceUser.id.toString(), this.spaceUser?.spaceName);
+    }
+
+    public muteMicrophoneEverybody() {
+        this.spaceUser?.roomConnection?.emitMuteEveryBodySpace(this.spaceUser?.spaceName);
+    }
+
+    public muteVideoEverybody() {
+        this.spaceUser?.roomConnection?.emitMuteVideoEveryBodySpace(this.spaceUser?.spaceName);
+    }
+
+    public muteMicrophonePartcipant() {
+        this.spaceUser?.roomConnection?.emitMuteParticipantIdSpace(
+            this.spaceUser?.spaceName,
+            this.spaceUser.id.toString()
+        );
+    }
+
+    public muteVideoParticipant() {
+        this.spaceUser?.roomConnection?.emitMuteVideoParticipantIdSpace(
+            this.spaceUser?.spaceName,
+            this.spaceUser.id.toString()
+        );
     }
 }

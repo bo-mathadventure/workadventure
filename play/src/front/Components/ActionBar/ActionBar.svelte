@@ -8,7 +8,6 @@
     import { requestedScreenSharingState } from "../../Stores/ScreenSharingStore";
     import {
         cameraListStore,
-        localStreamStore,
         microphoneListStore,
         speakerListStore,
         requestedCameraState,
@@ -87,7 +86,7 @@
     import { Emoji } from "../../Stores/Utils/emojiSchema";
     import {
         megaphoneCanBeUsedStore,
-        megaphoneEnabledStore,
+        liveStreamingEnabledStore,
         requestedMegaphoneStore,
     } from "../../Stores/MegaphoneStore";
     import { layoutManagerActionStore } from "../../Stores/LayoutManagerStore";
@@ -178,7 +177,7 @@
             streamingMegaphoneStore.set(false);
             return;
         }
-        if ($requestedMegaphoneStore || $megaphoneEnabledStore) {
+        if ($requestedMegaphoneStore || $liveStreamingEnabledStore) {
             analyticsClient.stopMegaphone();
             requestedMegaphoneStore.set(false);
             return;
@@ -370,27 +369,7 @@
 
     onDestroy(() => {
         subscribers.map((subscriber) => subscriber());
-        unsubscribeLocalStreamStore();
         chatTotalMessagesSubscription?.unsubscribe();
-    });
-
-    let stream: MediaStream | null;
-    const unsubscribeLocalStreamStore = localStreamStore.subscribe((value) => {
-        if (value.type === "success") {
-            stream = value.stream;
-
-            if (stream !== null) {
-                const audioTracks = stream.getAudioTracks();
-                if (audioTracks.length > 0) {
-                    // set default speaker selected
-                    if ($speakerListStore && $speakerListStore.length > 0) {
-                        speakerSelectedStore.set($speakerListStore[0].deviceId);
-                    }
-                }
-            }
-        } else {
-            stream = null;
-        }
     });
 
     function buttonActionBarTrigger(id: string) {
@@ -687,7 +666,7 @@
                     {/if}
                 {/if}
 
-                {#if $isSpeakerStore || $streamingMegaphoneStore || $megaphoneEnabledStore}
+                {#if $isSpeakerStore || $streamingMegaphoneStore || $liveStreamingEnabledStore}
                     <div
                         class="tw-transition-all bottom-action-button"
                         on:click={() => analyticsClient.screenSharing()}
@@ -763,19 +742,19 @@
                             <MegaphoneConfirm />
                         {:else}
                             <Tooltip
-                                text={$megaphoneEnabledStore
+                                text={$liveStreamingEnabledStore
                                     ? $LL.actionbar.disableMegaphone()
                                     : $LL.actionbar.enableMegaphone()}
                             />
                         {/if}
 
                         <button
-                            class:border-top-warning={$megaphoneEnabledStore || $streamingMegaphoneStore}
+                            class:border-top-warning={$liveStreamingEnabledStore || $streamingMegaphoneStore}
                             id="megaphone"
                         >
                             <img draggable="false" src={megaphoneImg} style="padding: 2px" alt="Toggle megaphone" />
                         </button>
-                        {#if $megaphoneEnabledStore}
+                        {#if $liveStreamingEnabledStore}
                             <div class="tw-absolute tw-top-[1.05rem] tw-right-1">
                                 <span
                                     class="tw-w-3 tw-h-3 tw-bg-warning tw-block tw-rounded-full tw-absolute tw-top-0 tw-right-0 tw-animate-ping tw-cursor-pointer"
@@ -901,27 +880,6 @@
                     </button>
                 </div>
             {/if}
-
-            <!-- TODO button must displayed by scripting API -->
-            <!--
-			{#if ENABLE_OPENID && !$userIsConnected && }
-				<div
-					class="bottom-action-section tw-flex tw-flex-initial"
-					in:fly={{}}
-					on:dragstart|preventDefault={noDrag}
-					on:click={() => analyticsClient.openRegister()}
-					on:click={register}
-				>
-					<button
-						class="btn light tw-m-0 tw-font-bold tw-text-xs sm:tw-text-base"
-						id="register-btn"
-						class:border-top-light={$menuVisiblilityStore}
-					>
-						{$LL.menu.icon.open.register()}
-					</button>
-				</div>
-			{/if}
-			-->
             {#each $addClassicButtonActionBarEvent as button (button.id)}
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
                 <div

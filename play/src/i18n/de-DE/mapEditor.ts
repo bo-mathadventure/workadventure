@@ -81,16 +81,15 @@ const mapEditor: DeepPartial<Translation["mapEditor"]> = {
         },
         advancedOptions: "Erweiterte Optionen",
         speakerMegaphoneProperties: {
-            id: "Sprecherzonenidentfier für die Erstellung eines eindeutigen Raums",
-            label: "Sprecherzone für Megaphon",
+            label: "Sprecherzone",
             description: "",
             nameLabel: "Sprecherzonenname",
             namePlaceholder: "MySpeakerZone",
         },
         listenerMegaphoneProperties: {
-            label: "Hörerzone für Megaphon",
+            label: "Besucherzone",
             description: "",
-            nameLabel: "Hörerzonenname",
+            nameLabel: "Besucherzonenname",
             namePlaceholder: "MyListenerZone",
         },
         chatEnabled: "Chat aktiviert",
@@ -153,6 +152,10 @@ const mapEditor: DeepPartial<Translation["mapEditor"]> = {
     areaEditor: {
         editInstructions: "Klicken Sie auf eine Fläche, um ihre Eigenschaften zu ändern.",
         nameLabel: "Name",
+    },
+    areaEditorInstructions: {
+        title: "Wie funktioniert das?",
+        description: "Zeichnen Sie ein Gebiet auf der Karte, um ein neues zu erstellen.",
     },
     entityEditor: {
         itemPicker: {
