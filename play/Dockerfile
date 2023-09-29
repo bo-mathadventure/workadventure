@@ -27,22 +27,10 @@ COPY play ./play
 COPY --from=proto-builder /usr/src/generated play/src/messages/generated
 ENV NODE_ENV=production
 # upgrade RAM available to 6G
-RUN --mount=type=secret,id=SENTRY_RELEASE \
-    --mount=type=secret,id=SENTRY_URL \
-    --mount=type=secret,id=SENTRY_AUTH_TOKEN \
-    --mount=type=secret,id=SENTRY_ORG \
-    --mount=type=secret,id=SENTRY_PROJECT \
-    --mount=type=secret,id=SENTRY_ENVIRONMENT \
-    export SENTRY_RELEASE=$(cat /run/secrets/SENTRY_RELEASE) && \
-    export SENTRY_URL=$(cat /run/secrets/SENTRY_URL) && \
-    export SENTRY_AUTH_TOKEN=$(cat /run/secrets/SENTRY_AUTH_TOKEN) && \
-    export SENTRY_ORG=$(cat /run/secrets/SENTRY_ORG) && \
-    export SENTRY_PROJECT=$(cat /run/secrets/SENTRY_PROJECT) && \
-    export SENTRY_ENVIRONMENT=$(cat /run/secrets/SENTRY_ENVIRONMENT) && \
-    cd play && \
+RUN cd play && \
     npm run typesafe-i18n && \
     npm run build-iframe-api && \
-    SENTRY_RELEASE=$SENTRY_RELEASE SENTRY_URL=$SENTRY_URL SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN SENTRY_ORG=$SENTRY_ORG SENTRY_PROJECT=$SENTRY_PROJECT SENTRY_ENVIRONMENT=$SENTRY_ENVIRONMENT NODE_OPTIONS="--max-old-space-size=6144" npm run build
+    NODE_OPTIONS="--max-old-space-size=6144" npm run build
 
 # final production image
 FROM node:20.8.0-bullseye-slim@sha256:9027d0d778368a3091ee36b0bfdc98ebf3d7815ee4e2811b05cc40ec2a0adf4e

@@ -440,7 +440,7 @@ export const mediaStreamConstraintsStore = derived(
 
         if (
             $availabilityStatusStore === AvailabilityStatus.DENY_PROXIMITY_MEETING ||
-            $availabilityStatusStore === AvailabilityStatus.SILENT ||
+            //$availabilityStatusStore === AvailabilityStatus.SILENT ||
             $availabilityStatusStore === AvailabilityStatus.SPEAKER
         ) {
             currentVideoConstraint = false;
