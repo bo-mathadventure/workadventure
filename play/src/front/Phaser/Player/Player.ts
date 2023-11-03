@@ -127,6 +127,7 @@ export class Player extends Character {
         return this.pathWalkingSpeed ? this.pathWalkingSpeed : speedUp && !followMode ? 2.5 * WOKA_SPEED : WOKA_SPEED;
     }
 
+
     private adjustPathToFollowToColliderBounds(path: { x: number; y: number }[]): { x: number; y: number }[] {
         return path.map((step) => {
             return { x: step.x, y: step.y - this.getBody().offset.y };
@@ -134,6 +135,7 @@ export class Player extends Character {
     }
 
     private inputStep(activeEvents: ActiveEventList, x: number, y: number) {
+        
         // Compute movement deltas
         const followMode = get(followStateStore) !== "off";
         const speed = this.deduceSpeed(activeEvents.get(UserInputEvent.SpeedUp), followMode);
@@ -155,7 +157,8 @@ export class Player extends Character {
         }
 
         //steps if player is not moving diagonally
-        else {
+        else
+        {
             if (activeEvents.get(UserInputEvent.MoveUp)) {
                 y = y - 1;
             } else if (activeEvents.get(UserInputEvent.MoveDown)) {
@@ -179,6 +182,7 @@ export class Player extends Character {
         // Compute direction
         let direction = this._lastDirection;
         if (moving && !joystickMovement) {
+            
             if (Math.abs(x) > Math.abs(y)) {
                 direction = x < 0 ? PositionMessage_Direction.LEFT : PositionMessage_Direction.RIGHT;
             } else {
@@ -189,9 +193,10 @@ export class Player extends Character {
         const emit = () => this.emit(hasMovedEventName, { moving, direction, x: this.x, y: this.y });
         if (moving) {
             this.move(x, y);
+            console.log("moving with speed : ",speed);
             emit();
         } else if (get(userMovingStore)) {
-            this.stop();
+           this.stop();
             emit();
         }
         // Update state
