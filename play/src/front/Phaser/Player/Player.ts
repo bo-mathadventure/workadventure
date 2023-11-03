@@ -5,7 +5,6 @@ import type { GameScene } from "../Game/GameScene";
 import type { ActiveEventList } from "../UserInput/UserInputManager";
 import { UserInputEvent } from "../UserInput/UserInputManager";
 import { Character } from "../Entity/Character";
-
 import { userMovingStore } from "../../Stores/GameStore";
 import { followStateStore, followRoleStore, followUsersStore } from "../../Stores/FollowStore";
 import { WOKA_SPEED } from "../../Enum/EnvironmentVariable";
@@ -123,6 +122,7 @@ export class Player extends Character {
         return this.pathWalkingSpeed ? this.pathWalkingSpeed : speedUp && !followMode ? 2.5 * WOKA_SPEED : WOKA_SPEED;
     }
 
+
     private adjustPathToFollowToColliderBounds(path: { x: number; y: number }[]): { x: number; y: number }[] {
         return path.map((step) => {
             return { x: step.x, y: step.y - this.getBody().offset.y };
@@ -130,22 +130,42 @@ export class Player extends Character {
     }
 
     private inputStep(activeEvents: ActiveEventList, x: number, y: number) {
-        // Process input events
-        if (activeEvents.get(UserInputEvent.MoveUp)) {
-            y = y - 1;
-        } else if (activeEvents.get(UserInputEvent.MoveDown)) {
-            y = y + 1;
-        }
-
-        if (activeEvents.get(UserInputEvent.MoveLeft)) {
-            x = x - 1;
-        } else if (activeEvents.get(UserInputEvent.MoveRight)) {
-            x = x + 1;
-        }
-
+        
         // Compute movement deltas
         const followMode = get(followStateStore) !== "off";
         const speed = this.deduceSpeed(activeEvents.get(UserInputEvent.SpeedUp), followMode);
+
+        // diagonlly steps if the player is moving diagonally
+        const diagonalStep = 1 / Math.sqrt(2);
+        if (activeEvents.get(UserInputEvent.MoveUp) && activeEvents.get(UserInputEvent.MoveLeft)) {
+            y -= diagonalStep;
+            x -= diagonalStep;
+        } else if (activeEvents.get(UserInputEvent.MoveDown) && activeEvents.get(UserInputEvent.MoveLeft)) {
+            x -= diagonalStep;
+            y += diagonalStep;
+        } else if (activeEvents.get(UserInputEvent.MoveUp) && activeEvents.get(UserInputEvent.MoveRight)) {
+            y -= diagonalStep;
+            x += diagonalStep;
+        } else if (activeEvents.get(UserInputEvent.MoveDown) && activeEvents.get(UserInputEvent.MoveRight)) {
+            y += diagonalStep;
+            x += diagonalStep;
+        }
+
+        //steps if player is not moving diagonally
+        else
+        {
+            if (activeEvents.get(UserInputEvent.MoveUp)) {
+                y = y - 1;
+            } else if (activeEvents.get(UserInputEvent.MoveDown)) {
+                y = y + 1;
+            }
+            if (activeEvents.get(UserInputEvent.MoveLeft)) {
+                x = x - 1;
+            } else if (activeEvents.get(UserInputEvent.MoveRight)) {
+                x = x + 1;
+            }
+        }
+
         const moveAmount = speed * 20;
         x = x * moveAmount;
         y = y * moveAmount;
@@ -157,23 +177,23 @@ export class Player extends Character {
         // Compute direction
         let direction = this._lastDirection;
         if (moving && !joystickMovement) {
+            
             if (Math.abs(x) > Math.abs(y)) {
                 direction = x < 0 ? PositionMessage_Direction.LEFT : PositionMessage_Direction.RIGHT;
             } else {
                 direction = y < 0 ? PositionMessage_Direction.UP : PositionMessage_Direction.DOWN;
             }
         }
-
         // Send movement events
         const emit = () => this.emit(hasMovedEventName, { moving, direction, x: this.x, y: this.y });
         if (moving) {
             this.move(x, y);
+            console.log("moving with speed : ",speed);
             emit();
         } else if (get(userMovingStore)) {
-            this.stop();
+           this.stop();
             emit();
         }
-
         // Update state
         userMovingStore.set(moving);
     }
@@ -186,7 +206,6 @@ export class Player extends Character {
             followStateStore.set("off");
             return [0, 0];
         }
-
         // Compute movement direction
         const xDistance = player.x - this.x;
         const yDistance = player.y - this.y;
@@ -197,6 +216,7 @@ export class Player extends Character {
         return this.getMovementDirection(xDistance, yDistance, distance);
     }
 
+    //Mover with Mouse Click
     private computeFollowPathMovement(): number[] {
         if (this.pathToFollow !== undefined && this.pathToFollow.length === 0) {
             this.finishFollowingPath();
