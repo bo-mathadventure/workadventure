@@ -188,7 +188,6 @@ export class Player extends Character {
         const emit = () => this.emit(hasMovedEventName, { moving, direction, x: this.x, y: this.y });
         if (moving) {
             this.move(x, y);
-            console.log("moving with speed : ",speed);
             emit();
         } else if (get(userMovingStore)) {
            this.stop();
