@@ -21,7 +21,6 @@ import { LL } from "../../../i18n/i18n-svelte";
 import {
     inJitsiStore,
     inBbbStore,
-    silentStore,
     inOpenWebsite,
     requestedCameraState,
     requestedMicrophoneState,
@@ -263,9 +262,11 @@ export class GameMapPropertiesListener {
 
         this.gameMapFrontWrapper.onPropertyChange(GameMapProperties.SILENT, (newValue) => {
             if (newValue === undefined || newValue === false || newValue === "") {
-                silentStore.setOthersSilent(false);
+                // mute the microphone
+                requestedMicrophoneState.enableMicrophone();
             } else {
-                silentStore.setOthersSilent(true);
+                // unmute the microphone
+                requestedMicrophoneState.disableMicrophone();
             }
         });
 
