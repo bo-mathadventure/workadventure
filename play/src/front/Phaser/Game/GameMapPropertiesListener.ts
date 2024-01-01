@@ -269,17 +269,10 @@ export class GameMapPropertiesListener {
 
         this.gameMapFrontWrapper.onPropertyChange(GameMapProperties.SILENT, (newValue) => {
             if (newValue === undefined || newValue === false || newValue === "") {
-<<<<<<< HEAD
                 // unmute the microphone
                 requestedMicrophoneState.enableMicrophone();
             } else {
                 // mute the microphone
-=======
-                // mute the microphone
-                requestedMicrophoneState.enableMicrophone();
-            } else {
-                // unmute the microphone
->>>>>>> only mute in Silent Zone
                 requestedMicrophoneState.disableMicrophone();
             }
         });
