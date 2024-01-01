@@ -262,10 +262,10 @@ export class GameMapPropertiesListener {
 
         this.gameMapFrontWrapper.onPropertyChange(GameMapProperties.SILENT, (newValue) => {
             if (newValue === undefined || newValue === false || newValue === "") {
-                // mute the microphone
+                // unmute the microphone
                 requestedMicrophoneState.enableMicrophone();
             } else {
-                // unmute the microphone
+                // mute the microphone
                 requestedMicrophoneState.disableMicrophone();
             }
         });
