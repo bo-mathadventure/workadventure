@@ -5,7 +5,7 @@ import { Jitsi } from "@workadventure/shared-utils";
 import { getSpeakerMegaphoneAreaName } from "@workadventure/map-editor/src/Utils";
 import { z } from "zod";
 import { scriptUtils } from "../../Api/ScriptUtils";
-import { coWebsiteManager } from "../../WebRtc/CoWebsiteManager";
+import { coWebsiteManager, GlobalPositionState } from "../../WebRtc/CoWebsiteManager";
 import { layoutManagerActionStore } from "../../Stores/LayoutManagerStore";
 import { localUserStore } from "../../Connection/LocalUserStore";
 import { ON_ACTION_TRIGGER_BUTTON, ON_ICON_TRIGGER_BUTTON } from "../../WebRtc/LayoutManager";
@@ -42,6 +42,13 @@ export interface OpenCoWebsite {
 
 // NOTE: We need to change id type to fit both ITiledMapObjects and UUID's from MapEditor
 export type ITiledPlace = Omit<ITiledMapLayer | ITiledMapObject, "id"> & { id?: string | number };
+
+// declaration of the variables  of the previous position of the player
+let previousPositionx = GlobalPositionState.getInstance().getPosition().x;
+let previousPositiony = GlobalPositionState.getInstance().getPosition().y;
+
+// declaration of the variable to check if player is in a zone to open cowebsite
+let isplayerwebsiteZone = false;
 
 export class GameMapPropertiesListener {
     private areasPropertiesListener: AreasPropertiesListener;
@@ -393,128 +400,158 @@ export class GameMapPropertiesListener {
         this.areasPropertiesListener.onLeaveAreasHandler(areas);
     }
 
+    // openwebsite handler
     private handleOpenWebsitePropertiesOnEnter(place: ITiledPlace): void {
         if (!place.properties) {
             return;
         }
-        let openWebsiteProperty: string | undefined;
-        let allowApiProperty: boolean | undefined;
-        let websitePolicyProperty: string | undefined;
-        let websiteWidthProperty: number | undefined;
-        let websitePositionProperty: number | undefined;
-        let websiteTriggerProperty: string | undefined;
-        let websiteTriggerMessageProperty: string | undefined;
-        let websiteClosableProperty: boolean | undefined;
 
-        place.properties.forEach((property) => {
-            switch (property.name) {
-                case GameMapProperties.OPEN_WEBSITE:
-                    openWebsiteProperty = property.value as string | undefined;
-                    break;
-                case GameMapProperties.OPEN_WEBSITE_ALLOW_API:
-                    allowApiProperty = property.value as boolean | undefined;
-                    break;
-                case GameMapProperties.OPEN_WEBSITE_POLICY:
-                    websitePolicyProperty = property.value as string | undefined;
-                    break;
-                case GameMapProperties.OPEN_WEBSITE_WIDTH:
-                    websiteWidthProperty = property.value as number | undefined;
-                    break;
-                case GameMapProperties.OPEN_WEBSITE_POSITION:
-                    websitePositionProperty = property.value as number | undefined;
-                    break;
-                case GameMapProperties.OPEN_WEBSITE_TRIGGER:
-                    websiteTriggerProperty = property.value as string | undefined;
-                    break;
-                case GameMapProperties.OPEN_WEBSITE_TRIGGER_MESSAGE:
-                    websiteTriggerMessageProperty = property.value as string | undefined;
-                    break;
-                case GameMapProperties.OPEN_WEBSITE_CLOSABLE:
-                    websiteClosableProperty = property.value as boolean | undefined;
-                    break;
+        // changing the variable global to true
+        isplayerwebsiteZone = true;
+        this.Recursiveonchange(place);
+    }
+
+    // my recursive listener to  OpenWebsite
+    private Recursiveonchange(place: ITiledPlace): void {
+        // check if player is in a zone to open cowebsite
+        if (!isplayerwebsiteZone) return;
+
+        previousPositionx = GlobalPositionState.getInstance().getPosition().x;
+        previousPositiony = GlobalPositionState.getInstance().getPosition().y;
+
+        //after 1 second , we check if player is still in the zone and didn't move
+        setTimeout(() => {
+            if (
+                previousPositionx === GlobalPositionState.getInstance().getPosition().x &&
+                previousPositiony === GlobalPositionState.getInstance().getPosition().y &&
+                isplayerwebsiteZone
+            ) {
+                if (!place.properties) {
+                    return;
+                }
+                let openWebsiteProperty: string | undefined;
+                let allowApiProperty: boolean | undefined;
+                let websitePolicyProperty: string | undefined;
+                let websiteWidthProperty: number | undefined;
+                let websitePositionProperty: number | undefined;
+                let websiteTriggerProperty: string | undefined;
+                let websiteTriggerMessageProperty: string | undefined;
+                let websiteClosableProperty: boolean | undefined;
+
+                place.properties.forEach((property) => {
+                    switch (property.name) {
+                        case GameMapProperties.OPEN_WEBSITE:
+                            openWebsiteProperty = property.value as string | undefined;
+                            break;
+                        case GameMapProperties.OPEN_WEBSITE_ALLOW_API:
+                            allowApiProperty = property.value as boolean | undefined;
+                            break;
+                        case GameMapProperties.OPEN_WEBSITE_POLICY:
+                            websitePolicyProperty = property.value as string | undefined;
+                            break;
+                        case GameMapProperties.OPEN_WEBSITE_WIDTH:
+                            websiteWidthProperty = property.value as number | undefined;
+                            break;
+                        case GameMapProperties.OPEN_WEBSITE_POSITION:
+                            websitePositionProperty = property.value as number | undefined;
+                            break;
+                        case GameMapProperties.OPEN_WEBSITE_TRIGGER:
+                            websiteTriggerProperty = property.value as string | undefined;
+                            break;
+                        case GameMapProperties.OPEN_WEBSITE_TRIGGER_MESSAGE:
+                            websiteTriggerMessageProperty = property.value as string | undefined;
+                            break;
+                        case GameMapProperties.OPEN_WEBSITE_CLOSABLE:
+                            websiteClosableProperty = property.value as boolean | undefined;
+                            break;
+                    }
+                });
+
+                if (!openWebsiteProperty) {
+                    return;
+                }
+
+                const actionId = "openWebsite-" + (Math.random() + 1).toString(36).substring(7);
+
+                if (this.coWebsitesOpenByPlace.has(this.getIdFromPlace(place))) {
+                    return;
+                }
+
+                const coWebsiteOpen: OpenCoWebsite = {
+                    actionId: actionId,
+                };
+
+                this.coWebsitesOpenByPlace.set(this.getIdFromPlace(place), coWebsiteOpen);
+
+                const loadCoWebsiteFunction = (coWebsite: CoWebsite) => {
+                    coWebsiteManager.loadCoWebsite(coWebsite).catch(() => {
+                        console.error("Error during loading a co-website: " + coWebsite.getUrl());
+                    });
+
+                    layoutManagerActionStore.removeAction(actionId);
+                };
+
+                const openCoWebsiteFunction = () => {
+                    const coWebsite = new SimpleCoWebsite(
+                        new URL(openWebsiteProperty ?? "", this.scene.mapUrlFile),
+                        allowApiProperty,
+                        websitePolicyProperty,
+                        websiteWidthProperty,
+                        websiteClosableProperty
+                    );
+
+                    coWebsiteOpen.coWebsite = coWebsite;
+
+                    coWebsiteManager.addCoWebsiteToStore(coWebsite, websitePositionProperty);
+
+                    loadCoWebsiteFunction(coWebsite);
+
+                    //user in a zone with cowebsite opened or pressed SPACE to enter is a zone
+                    inOpenWebsite.set(true);
+
+                    // analytics event for open website
+                    analyticsClient.openedWebsite(coWebsite.getUrl());
+                };
+
+                if (localUserStore.getForceCowebsiteTrigger() || websiteTriggerProperty === ON_ACTION_TRIGGER_BUTTON) {
+                    if (!websiteTriggerMessageProperty) {
+                        websiteTriggerMessageProperty = get(LL).trigger.cowebsite();
+                    }
+
+                    this.coWebsitesActionTriggerByPlace.set(this.getIdFromPlace(place), actionId);
+
+                    layoutManagerActionStore.addAction({
+                        uuid: actionId,
+                        type: "message",
+                        message: websiteTriggerMessageProperty,
+                        callback: () => openCoWebsiteFunction(),
+                        userInputManager: this.scene.userInputManager,
+                    });
+                } else if (websiteTriggerProperty === ON_ICON_TRIGGER_BUTTON) {
+                    const coWebsite = new SimpleCoWebsite(
+                        new URL(openWebsiteProperty ?? "", this.scene.mapUrlFile),
+                        allowApiProperty,
+                        websitePolicyProperty,
+                        websiteWidthProperty,
+                        websiteClosableProperty
+                    );
+
+                    coWebsiteOpen.coWebsite = coWebsite;
+
+                    coWebsiteManager.addCoWebsiteToStore(coWebsite, websitePositionProperty);
+
+                    //user in zone to open cowesite with only icone
+                    inOpenWebsite.set(true);
+                }
+
+                if (!websiteTriggerProperty) {
+                    openCoWebsiteFunction();
+                }
+            } else {
+                //we call the function again
+                this.Recursiveonchange(place);
             }
-        });
-
-        if (!openWebsiteProperty) {
-            return;
-        }
-
-        const actionId = "openWebsite-" + (Math.random() + 1).toString(36).substring(7);
-
-        if (this.coWebsitesOpenByPlace.has(this.getIdFromPlace(place))) {
-            return;
-        }
-
-        const coWebsiteOpen: OpenCoWebsite = {
-            actionId: actionId,
-        };
-
-        this.coWebsitesOpenByPlace.set(this.getIdFromPlace(place), coWebsiteOpen);
-
-        const loadCoWebsiteFunction = (coWebsite: CoWebsite) => {
-            coWebsiteManager.loadCoWebsite(coWebsite).catch(() => {
-                console.error("Error during loading a co-website: " + coWebsite.getUrl());
-            });
-
-            layoutManagerActionStore.removeAction(actionId);
-        };
-
-        const openCoWebsiteFunction = () => {
-            const coWebsite = new SimpleCoWebsite(
-                new URL(openWebsiteProperty ?? "", this.scene.mapUrlFile),
-                allowApiProperty,
-                websitePolicyProperty,
-                websiteWidthProperty,
-                websiteClosableProperty
-            );
-
-            coWebsiteOpen.coWebsite = coWebsite;
-
-            coWebsiteManager.addCoWebsiteToStore(coWebsite, websitePositionProperty);
-
-            loadCoWebsiteFunction(coWebsite);
-
-            //user in a zone with cowebsite opened or pressed SPACE to enter is a zone
-            inOpenWebsite.set(true);
-
-            // analytics event for open website
-            analyticsClient.openedWebsite(coWebsite.getUrl());
-        };
-
-        if (localUserStore.getForceCowebsiteTrigger() || websiteTriggerProperty === ON_ACTION_TRIGGER_BUTTON) {
-            if (!websiteTriggerMessageProperty) {
-                websiteTriggerMessageProperty = get(LL).trigger.cowebsite();
-            }
-
-            this.coWebsitesActionTriggerByPlace.set(this.getIdFromPlace(place), actionId);
-
-            layoutManagerActionStore.addAction({
-                uuid: actionId,
-                type: "message",
-                message: websiteTriggerMessageProperty,
-                callback: () => openCoWebsiteFunction(),
-                userInputManager: this.scene.userInputManager,
-            });
-        } else if (websiteTriggerProperty === ON_ICON_TRIGGER_BUTTON) {
-            const coWebsite = new SimpleCoWebsite(
-                new URL(openWebsiteProperty ?? "", this.scene.mapUrlFile),
-                allowApiProperty,
-                websitePolicyProperty,
-                websiteWidthProperty,
-                websiteClosableProperty
-            );
-
-            coWebsiteOpen.coWebsite = coWebsite;
-
-            coWebsiteManager.addCoWebsiteToStore(coWebsite, websitePositionProperty);
-
-            //user in zone to open cowesite with only icone
-            inOpenWebsite.set(true);
-        }
-
-        if (!websiteTriggerProperty) {
-            openCoWebsiteFunction();
-        }
+        }, 1000);
     }
 
     private handleSpeakerMegaphonePropertiesOnEnter(place: ITiledPlace): void {
@@ -608,10 +645,11 @@ export class GameMapPropertiesListener {
     }
 
     private handleOpenWebsitePropertiesOnLeave(place: ITiledPlace): void {
+        // changing the variable global to false
+        isplayerwebsiteZone = false;
         if (!place.properties) {
             return;
         }
-
         let openWebsiteProperty: string | undefined;
         let websiteTriggerProperty: string | undefined;
 
