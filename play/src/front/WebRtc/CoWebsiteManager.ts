@@ -34,6 +34,33 @@ const cowebsiteSwipeButtonId = "cowebsite-swipe";
 const cowebsiteSlotBaseDomId = "cowebsite-slot-";
 const animationTime = 500; //time used by the css transitions, in ms.
 
+export class GlobalPositionState {
+    private static instance: GlobalPositionState;
+    private x: number;
+    private y: number;
+
+    private constructor(initialX = 0, initialY = 0) {
+        this.x = initialX;
+        this.y = initialY;
+    }
+
+    public static getInstance(): GlobalPositionState {
+        if (!GlobalPositionState.instance) {
+            GlobalPositionState.instance = new GlobalPositionState();
+        }
+        return GlobalPositionState.instance;
+    }
+
+    updatePosition(newX: number, newY: number): void {
+        this.x = newX;
+        this.y = newY;
+    }
+
+    getPosition(): { x: number; y: number } {
+        return { x: this.x, y: this.y };
+    }
+}
+
 interface TouchMoveCoordinates {
     x: number;
     y: number;
