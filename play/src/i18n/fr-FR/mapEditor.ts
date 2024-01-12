@@ -37,13 +37,13 @@ const mapEditor: DeepPartial<Translation["mapEditor"]> = {
             defaultButtonLabel: "Ouvrir la salle Jitsi",
             audioMutedLabel: "Désactivé par défaut",
             moreOptionsLabel: "Plus d'options",
-            trigger: "Interaction",
+            trigger: "Interaction d'ouverture",
             triggerMessage: "Message d'information",
             triggerShowImmediately: "Afficher immédiatement à l'entrée",
             triggerOnClick: "Démarrer en mode réduit dans la barre inférieure",
             triggerOnAction: "Afficher un message d'information avec le message",
             closable: "Peut être fermé",
-            noPrefix: "Partager avec d'autres salles",
+            noPrefix: "Peut être ouvert dans d'autres salons",
             width: "Largeur",
             jitsiRoomConfig: {
                 addConfig: "Ajouter une option",
@@ -60,6 +60,7 @@ const mapEditor: DeepPartial<Translation["mapEditor"]> = {
             audioLinkPlaceholder: "https://xxx.yyy/smthing.mp3",
             defaultButtonLabel: "Jouer de la musique",
             volumeLabel: "Volume",
+            error: "Impossible de charger le son",
         },
         linkProperties: {
             label: "Ouvrir un lien",
@@ -88,14 +89,13 @@ const mapEditor: DeepPartial<Translation["mapEditor"]> = {
         },
         advancedOptions: "Options avancées",
         speakerMegaphoneProperties: {
-            id: "Identifiant de la zone de haut-parleur utilisé pour créer une salle unique",
-            label: "Zone de diffusion pour haut-parleur",
+            label: "Zone conférencier",
             description: "",
             nameLabel: "Nom de la zone de diffusion",
             namePlaceholder: "MaZoneDeDiffusion",
         },
         listenerMegaphoneProperties: {
-            label: "Zone de diffusion pour auditeur",
+            label: "Zone participant",
             description: "",
             nameLabel: "Nom de la zone de diffusion",
             namePlaceholder: "MaZoneDeDiffusion",
@@ -159,6 +159,10 @@ const mapEditor: DeepPartial<Translation["mapEditor"]> = {
     areaEditor: {
         editInstructions: "Sélectionnez une zone pour modifier ses propriétés.",
         nameLabel: "Nom de la zone",
+    },
+    areaEditorInstructions: {
+        title: "Comment ca marche ?",
+        description: "Dessinez une zone sur la carte afin d'en créer une nouvelle.",
     },
     entityEditor: {
         itemPicker: {

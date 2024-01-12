@@ -28,7 +28,7 @@ import { JitsiCoWebsite } from "../../../WebRtc/CoWebsite/JitsiCoWebsite";
 import { JITSI_PRIVATE_MODE, JITSI_URL } from "../../../Enum/EnvironmentVariable";
 import { scriptUtils } from "../../../Api/ScriptUtils";
 import { audioManagerFileStore, audioManagerVisibilityStore } from "../../../Stores/AudioManagerStore";
-import { currentMegaphoneNameStore, requestedMegaphoneStore } from "../../../Stores/MegaphoneStore";
+import { currentLiveStreamingNameStore } from "../../../Stores/MegaphoneStore";
 import { gameManager } from "../GameManager";
 import { iframeListener } from "../../../Api/IframeListener";
 import { chatZoneLiveStore } from "../../../Stores/ChatStore";
@@ -49,6 +49,9 @@ export class AreasPropertiesListener {
 
     public onEnterAreasHandler(areas: AreaData[]): void {
         for (const area of areas) {
+            // analytics event for area
+            analyticsClient.enterAreaMapEditor(area.id, area.name);
+
             if (!area.properties) {
                 continue;
             }
@@ -98,6 +101,9 @@ export class AreasPropertiesListener {
 
     public onLeaveAreasHandler(areas: AreaData[]): void {
         for (const area of areas) {
+            // analytics event for area
+            analyticsClient.leaveAreaMapEditor(area.id, area.name);
+
             if (!area.properties) {
                 continue;
             }
@@ -533,25 +539,30 @@ export class AreasPropertiesListener {
     }
 
     private handleSpeakerMegaphonePropertyOnEnter(property: SpeakerMegaphonePropertyData): void {
-        if (property.name !== undefined) {
-            currentMegaphoneNameStore.set(property.name);
-            this.scene.broadcastService.joinSpace(property.name, false);
+        if (property.name !== undefined && property.id !== undefined) {
+            const uniqRoomName = Jitsi.slugifyJitsiRoomName(property.name, this.scene.roomUrl);
+            // TODO remove this console.log after testing
+            console.info("handleSpeakerMegaphonePropertyOnEnter => uniqRoomName : ", uniqRoomName);
+            currentLiveStreamingNameStore.set(uniqRoomName);
+            this.scene.broadcastService.joinSpace(uniqRoomName, false);
             isSpeakerStore.set(true);
-            requestedMegaphoneStore.set(true);
+            //requestedMegaphoneStore.set(true);
             if (property.chatEnabled) {
-                this.handleJoinMucRoom(property.name, "live");
+                this.handleJoinMucRoom(uniqRoomName, "live");
             }
         }
     }
 
     private handleSpeakerMegaphonePropertyOnLeave(property: SpeakerMegaphonePropertyData): void {
-        if (property.name !== undefined) {
-            currentMegaphoneNameStore.set(undefined);
-            this.scene.broadcastService.leaveSpace(property.name);
-            requestedMegaphoneStore.set(false);
+        if (property.name !== undefined && property.id !== undefined) {
             isSpeakerStore.set(false);
+            const uniqRoomName = Jitsi.slugifyJitsiRoomName(property.name, this.scene.roomUrl);
+            // TODO remove this console.log after testing
+            console.info("handleSpeakerMegaphonePropertyOnEnter => uniqRoomName : ", uniqRoomName);
+            currentLiveStreamingNameStore.set(undefined);
+            this.scene.broadcastService.leaveSpace(uniqRoomName);
             if (property.chatEnabled) {
-                this.handleLeaveMucRoom(property.name);
+                this.handleLeaveMucRoom(uniqRoomName);
             }
         }
     }
@@ -563,10 +574,13 @@ export class AreasPropertiesListener {
                 property.speakerZoneName
             );
             if (speakerZoneName) {
-                currentMegaphoneNameStore.set(speakerZoneName);
-                this.scene.broadcastService.joinSpace(speakerZoneName, false);
+                const uniqRoomName = Jitsi.slugifyJitsiRoomName(speakerZoneName, this.scene.roomUrl);
+                // TODO remove this console.log after testing
+                console.info("handleListenerMegaphonePropertyOnEnter => uniqRoomName", uniqRoomName);
+                currentLiveStreamingNameStore.set(uniqRoomName);
+                this.scene.broadcastService.joinSpace(uniqRoomName, false);
                 if (property.chatEnabled) {
-                    this.handleJoinMucRoom(speakerZoneName, "live");
+                    this.handleJoinMucRoom(uniqRoomName, "live");
                 }
             }
         }
@@ -579,10 +593,13 @@ export class AreasPropertiesListener {
                 property.speakerZoneName
             );
             if (speakerZoneName) {
-                currentMegaphoneNameStore.set(undefined);
-                this.scene.broadcastService.leaveSpace(speakerZoneName);
+                const uniqRoomName = Jitsi.slugifyJitsiRoomName(speakerZoneName, this.scene.roomUrl);
+                // TODO remove this console.log after testing
+                console.info("handleListenerMegaphonePropertyOnLeave => uniqRoomName", uniqRoomName);
+                currentLiveStreamingNameStore.set(undefined);
+                this.scene.broadcastService.leaveSpace(uniqRoomName);
                 if (property.chatEnabled) {
-                    this.handleLeaveMucRoom(speakerZoneName);
+                    this.handleLeaveMucRoom(uniqRoomName);
                 }
             }
         }

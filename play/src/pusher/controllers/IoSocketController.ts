@@ -1,4 +1,3 @@
-import { isAxiosError } from "axios";
 import type HyperExpress from "hyper-express";
 import { z } from "zod";
 import {
@@ -342,7 +341,6 @@ export class IoSocketController {
                             isCompanionTextureValid: true,
                             companionTexture: undefined,
                             messages: [],
-                            anonymous: true,
                             userRoomToken: undefined,
                             jabberId: null,
                             jabberPassword: null,
@@ -412,13 +410,9 @@ export class IoSocketController {
                                     );
                                 }
                             } catch (err) {
-                                if (isAxiosError(err)) {
-                                    Sentry.captureException(`Unknown error on room connection ${err}`);
-                                    console.error("Unknown error on room connection", err);
-                                    if (upgradeAborted.aborted) {
-                                        // If the response points to nowhere, don't attempt an upgrade
-                                        return;
-                                    }
+                                if (upgradeAborted.aborted) {
+                                    // If the response points to nowhere, don't attempt an upgrade
+                                    return;
                                 }
                                 throw err;
                             }
@@ -613,7 +607,7 @@ export class IoSocketController {
                                 socketManager.emitInvalidCompanionTextureMessage(socket);
                             }
                         } else {
-                            socketManager.emitConnectionErrorMessage(socket, socketData.message);
+                            socketManager.emitConnectionErrorMessage(socket, socketData.message.toString());
                         }
                         ws.end(1000, "Error message sent");
                         return;
@@ -867,6 +861,55 @@ export class IoSocketController {
                         case "editMapCommandMessage":
                         case "askPositionMessage": {
                             socketManager.forwardMessageToBack(socket, message.message);
+                            break;
+                        }
+                        case "muteParticipantIdMessage": {
+                            socketManager.handleMuteParticipantIdMessage(
+                                socket,
+                                message.message.muteParticipantIdMessage.spaceName,
+                                message.message.muteParticipantIdMessage.mutedUserUuid,
+                                message.message
+                            );
+                            break;
+                        }
+                        case "muteVideoParticipantIdMessage": {
+                            socketManager.handleMuteVideoParticipantIdMessage(
+                                socket,
+                                message.message.muteVideoParticipantIdMessage.spaceName,
+                                message.message.muteVideoParticipantIdMessage.mutedUserUuid,
+                                message.message
+                            );
+                            break;
+                        }
+                        case "kickOffUserMessage": {
+                            socketManager.handleKickOffSpaceUserMessage(
+                                socket,
+                                message.message.kickOffUserMessage.spaceName,
+                                message.message.kickOffUserMessage.userId,
+                                message.message
+                            );
+                            break;
+                        }
+                        case "muteEveryBodyParticipantMessage": {
+                            socketManager.handleMuteEveryBodyParticipantMessage(
+                                socket,
+                                message.message.muteEveryBodyParticipantMessage.spaceName,
+                                message.message.muteEveryBodyParticipantMessage.senderUserId,
+                                message.message
+                            );
+                            break;
+                        }
+                        case "muteVideoEveryBodyParticipantMessage": {
+                            socketManager.handleMuteVideoEveryBodyParticipantMessage(
+                                socket,
+                                message.message.muteVideoEveryBodyParticipantMessage.spaceName,
+                                message.message.muteVideoEveryBodyParticipantMessage.userId,
+                                message.message
+                            );
+                            break;
+                        }
+                        case "banPlayerMessage": {
+                            await socketManager.handleBanPlayerMessage(socket, message.message.banPlayerMessage);
                             break;
                         }
                         default: {

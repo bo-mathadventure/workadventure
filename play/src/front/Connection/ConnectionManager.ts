@@ -1,5 +1,12 @@
+import * as Sentry from "@sentry/svelte";
 import type { AvailabilityStatus } from "@workadventure/messages";
-import { isRegisterData, MeRequest, MeResponse } from "@workadventure/messages";
+import {
+    ErrorApiErrorData,
+    ErrorApiRetryData,
+    ErrorApiUnauthorizedData,
+    isRegisterData,
+    MeResponse,
+} from "@workadventure/messages";
 import { isAxiosError } from "axios";
 import { analyticsClient } from "../Administration/AnalyticsClient";
 import { subMenusStore, userIsConnected, warningContainerStore } from "../Stores/MenuStore";
@@ -59,6 +66,7 @@ class ConnectionManager {
             loginSceneVisibleIframeStore.set(false);
             return null;
         }
+        analyticsClient.loggedWithSso();
         const redirectUrl = new URL(`${this._currentRoom.iframeAuthentication}`, window.location.href);
         redirectUrl.searchParams.append("playUri", this._currentRoom.key);
         return redirectUrl;
@@ -67,17 +75,23 @@ class ConnectionManager {
     /**
      * Logout
      */
-    public async logout() {
+    public logout() {
+        // save the current token to use it in the redirect logout url
+        const tokenTmp = localUserStore.getAuthToken();
+        //remove token in localstorage
+        localUserStore.setAuthToken(null);
         //user logout, set connected store for menu at false
         userIsConnected.set(false);
-
-        //Logout user in pusher and hydra
-        const token = localUserStore.getAuthToken();
-        await axiosToPusher.get("logout-callback", { params: { token } }).then((res) => res.data);
-        localUserStore.setAuthToken(null);
-
-        //Go on root page
-        window.location.assign(this._currentRoom?.opidLogoutRedirectUrl ?? "/");
+        // check if we are in a room
+        if (!ENABLE_OPENID || !this._currentRoom) {
+            window.location.assign("/login");
+            return;
+        }
+        // redirect to logout url
+        const redirectUrl = new URL(`${this._currentRoom.opidLogoutRedirectUrl}`, window.location.href);
+        redirectUrl.searchParams.append("playUri", this._currentRoom.key);
+        redirectUrl.searchParams.append("token", tokenTmp ?? "");
+        window.location.assign(redirectUrl);
     }
 
     /**
@@ -89,6 +103,10 @@ class ConnectionManager {
         | {
               room: Room;
               nextScene: "selectCharacterScene" | "selectCompanionScene" | "gameScene";
+          }
+        | {
+              nextScene: "errorScene";
+              error: ErrorApiErrorData | ErrorApiRetryData | ErrorApiUnauthorizedData | Error;
           }
         | URL
     > {
@@ -218,24 +236,37 @@ class ConnectionManager {
                 try {
                     const response = await this.checkAuthUserConnexion(this.authToken);
                     if (response.status === "error") {
-                        if (response.type === "retry") {
+                        /*if (response.type === "retry") {
                             console.warn("Token expired, trying to login anonymously");
                         } else {
                             console.error(response);
+                        }*/
+
+                        if (response.type === "redirect") {
+                            return new URL(response.urlToRedirect);
                         }
 
-                        // if the user must be connected to the current room or if the pusher error is not openid provider access error
-                        if (this._currentRoom.authenticationMandatory) {
-                            const redirect = this.loadOpenIDScreen();
-                            if (redirect === null) {
-                                throw new Error("Unable to redirect on login page.");
+                        if (response.type === "unauthorized") {
+                            // if the user must be connected to the current room or if the pusher error is not openid provider access error
+                            if (this._currentRoom.authenticationMandatory) {
+                                const redirect = this.loadOpenIDScreen();
+                                if (redirect === null) {
+                                    return {
+                                        nextScene: "errorScene",
+                                        error: response,
+                                    };
+                                }
+                                return redirect;
+                            } else {
+                                await this.anonymousLogin();
                             }
-                            return redirect;
                         } else {
-                            await this.anonymousLogin();
+                            return {
+                                nextScene: "errorScene",
+                                error: response,
+                            };
                         }
                     }
-                    analyticsClient.loggedWithSso();
                     if (response.status === "ok") {
                         if (response.isCharacterTexturesValid === false) {
                             nextScene = "selectCharacterScene";
@@ -246,19 +277,30 @@ class ConnectionManager {
                 } catch (err) {
                     if (isAxiosError(err) && err.response?.status === 401) {
                         console.warn("Token expired, trying to login anonymously");
-                    } else {
-                        console.error(err);
-                    }
-
-                    // if the user must be connected to the current room or if the pusher error is not openid provider access error
-                    if (this._currentRoom.authenticationMandatory) {
-                        const redirect = this.loadOpenIDScreen();
-                        if (redirect === null) {
-                            throw new Error("Unable to redirect on login page.");
+                        // if the user must be connected to the current room or if the pusher error is not openid provider access error
+                        if (this._currentRoom.authenticationMandatory) {
+                            const redirect = this.loadOpenIDScreen();
+                            if (redirect === null) {
+                                throw new Error("Unable to redirect on login page.");
+                            }
+                            return redirect;
+                        } else {
+                            await this.anonymousLogin();
                         }
-                        return redirect;
                     } else {
-                        await this.anonymousLogin();
+                        Sentry.captureException(err);
+                        if (err instanceof Error) {
+                            return {
+                                nextScene: "errorScene",
+                                error: err,
+                            };
+                        } else {
+                            console.error("An unknown error occurred", err);
+                            return {
+                                nextScene: "errorScene",
+                                error: new Error("An unknown error occurred"),
+                            };
+                        }
                     }
                 }
             }
@@ -421,7 +463,7 @@ class ConnectionManager {
         return this.connexionType;
     }
 
-    async checkAuthUserConnexion(token: string) {
+    private async checkAuthUserConnexion(token: string) {
         //set connected store for menu at false
         userIsConnected.set(false);
 
@@ -439,7 +481,7 @@ class ConnectionManager {
                     playUri,
                     localStorageCharacterTextureIds: localUserStore.getCharacterTextures() ?? undefined,
                     localStorageCompanionTextureId: localUserStore.getCompanionTextureId() ?? undefined,
-                } satisfies MeRequest,
+                },
             })
             .then((res) => {
                 return res.data;

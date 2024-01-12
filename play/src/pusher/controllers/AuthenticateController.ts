@@ -1,12 +1,11 @@
 import { v4 } from "uuid";
-import { ErrorApiData, RegisterData, MeResponse, MeRequest } from "@workadventure/messages";
-import { isAxiosError } from "axios";
+import { RegisterData, MeResponse, MeRequest } from "@workadventure/messages";
 import { z } from "zod";
 import * as Sentry from "@sentry/node";
 import { JsonWebTokenError } from "jsonwebtoken";
 import { AuthTokenData, jwtTokenManager } from "../services/JWTTokenManager";
 import { openIDClient } from "../services/OpenIDClient";
-import { DISABLE_ANONYMOUS } from "../enums/EnvironmentVariable";
+import { DISABLE_ANONYMOUS, FRONT_URL } from "../enums/EnvironmentVariable";
 import { adminService } from "../services/AdminService";
 import { validateQuery } from "../services/QueryValidator";
 import { VerifyDomainService } from "../services/verifyDomain/VerifyDomainService";
@@ -21,6 +20,7 @@ export class AuthenticateController extends BaseHttpController {
         this.register();
         this.anonymLogin();
         this.profileCallback();
+        this.logoutUser();
     }
 
     private openIDLogin(): void {
@@ -135,7 +135,11 @@ export class AuthenticateController extends BaseHttpController {
             if (query === undefined) {
                 return;
             }
-            const { token, playUri, localStorageCharacterTextureIds, localStorageCompanionTextureId } = query;
+            const { token, playUri, localStorageCompanionTextureId } = query;
+            let localStorageCharacterTextureIds = query["localStorageCharacterTextureIds[]"];
+            if (typeof localStorageCharacterTextureIds === "string") {
+                localStorageCharacterTextureIds = [localStorageCharacterTextureIds];
+            }
             try {
                 const authTokenData: AuthTokenData = jwtTokenManager.verifyJWTToken(token, false);
 
@@ -199,7 +203,7 @@ export class AuthenticateController extends BaseHttpController {
                     return;
                 }
 
-                if (isAxiosError(err)) {
+                /*if (isAxiosError(err)) {
                     const errorType = ErrorApiData.safeParse(err?.response?.data);
                     if (errorType.success) {
                         const status = err?.response?.status ?? 500;
@@ -209,56 +213,9 @@ export class AuthenticateController extends BaseHttpController {
                         });
                         return;
                     }
-                }
+                }*/
                 throw err;
             }
-        });
-    }
-
-    private logoutCallback(): void {
-        /**
-         * @openapi
-         * /logout-callback:
-         *   get:
-         *     description: TODO
-         *     parameters:
-         *      - name: "token"
-         *        in: "query"
-         *        description: "todo"
-         *        required: false
-         *        type: "string"
-         *     responses:
-         *       200:
-         *         description: TODO
-         *
-         */
-        this.app.get("/logout-callback", async (req, res) => {
-            const query = validateQuery(
-                req,
-                res,
-                z.object({
-                    token: z.string(),
-                })
-            );
-            if (query === undefined) {
-                return;
-            }
-
-            try {
-                const authTokenData: AuthTokenData = jwtTokenManager.verifyJWTToken(query.token, false);
-                if (authTokenData.accessToken == undefined) {
-                    throw Error("Cannot log out, no access token found.");
-                }
-                await openIDClient.logoutUser(authTokenData.accessToken);
-            } catch (error) {
-                Sentry.captureException(`openIDCallback => logout-callback: ${error}`);
-                console.error("openIDCallback => logout-callback", error);
-            }
-
-            res.atomic(() => {
-                res.status(200).send("");
-            });
-            return;
         });
     }
 
@@ -495,6 +452,104 @@ export class AuthenticateController extends BaseHttpController {
                 res.send("");
             });
             return;
+        });
+    }
+
+    private logoutCallback(): void {
+        /**
+         * @openapi
+         * /logout-callback:
+         *   get:
+         *     description: TODO
+         *     parameters:
+         *      - name: "token"
+         *        in: "query"
+         *        description: "todo"
+         *        required: false
+         *        type: "string"
+         *     responses:
+         *       200:
+         *         description: TODO
+         *
+         */
+        this.app.get("/logout-callback", (req, res) => {
+            // if no playUri, redirect to front
+            if (!req.cookies.playUri) {
+                res.atomic(() => {
+                    res.redirect(FRONT_URL);
+                });
+                return;
+            }
+
+            // when user logout, redirect to playUri saved in cookie
+            const logOutAdminUrl = new URL(req.cookies.playUri);
+            res.atomic(() => {
+                res.clearCookie("playUri");
+                res.redirect(logOutAdminUrl.toString());
+            });
+            return;
+        });
+    }
+
+    private logoutUser(): void {
+        /**
+         * @openapi
+         * /logout:
+         *   get:
+         *     description: TODO
+         *     responses:
+         *       302:
+         *         description: Redirects the user to the OpenID logout screen
+         */
+        this.app.get("/logout", async (req, res) => {
+            const query = validateQuery(
+                req,
+                res,
+                z.object({
+                    playUri: z.string(),
+                    token: z.string(),
+                    redirect: z.string().optional(),
+                })
+            );
+            if (query === undefined) {
+                return;
+            }
+
+            const verifyDomainService_ = VerifyDomainService.get(await adminService.getCapabilities());
+            const verifyDomainResult = await verifyDomainService_.verifyDomain(query.playUri);
+            if (!verifyDomainResult) {
+                res.atomic(() => {
+                    res.status(403);
+                    res.send("Unauthorized domain in playUri");
+                });
+                return;
+            }
+
+            const authTokenData: AuthTokenData = jwtTokenManager.verifyJWTToken(query.token, false);
+            if (authTokenData.accessToken == undefined) {
+                throw Error("Cannot log out, no access token found.");
+            }
+            // TODO: change that to use end session endpoint
+            // Use post logout redirect and id token hint to redirect on the logut session endpoint of the OpenId provider
+            // https://openid.net/specs/openid-connect-session-1_0.html#RPLogout
+            await openIDClient.logoutUser(authTokenData.accessToken);
+
+            res.atomic(() => {
+                // if no redirect, redirect to playUri and connect user to the world
+                // if the world is with authentication mandatory, the user will be redirected to the login screen
+                // if the world is anonymous or with authentication optional, the user will be connected to the world
+                if (!query.redirect) {
+                    res.redirect(query.playUri);
+                    return;
+                }
+
+                // save the playUri in cookie to redirect to the world after logout
+                res.cookie("playUri", query.playUri, undefined, {
+                    httpOnly: true, // dont let browser javascript access cookie ever
+                    secure: req.secure, // only use cookie over https
+                });
+                res.redirect(query.redirect);
+            });
         });
     }
 }
