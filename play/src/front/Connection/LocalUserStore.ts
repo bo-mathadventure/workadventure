@@ -308,7 +308,7 @@ class LocalUserStore {
     getCameraPrivacySettings() {
         //if this setting doesn't exist in LocalUserStore, we set a default value
         if (localStorage.getItem(cameraPrivacySettings) == null) {
-            localStorage.setItem(cameraPrivacySettings, "false");
+            localStorage.setItem(cameraPrivacySettings, "true");
         }
         return localStorage.getItem(cameraPrivacySettings) === "true";
     }
