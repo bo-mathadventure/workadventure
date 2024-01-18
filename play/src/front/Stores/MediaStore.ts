@@ -420,10 +420,10 @@ export const mediaStreamConstraintsStore = derived(
             currentAudioConstraint = false;
         }
 
+        const userMicrophonePrivacySetting = localUserStore.getMicrophonePrivacySettings();
+        const userCameraPrivacySetting = localUserStore.getCameraPrivacySettings();
         // Disable webcam for privacy reasons (the game is not visible and we were talking to no one)
         if ($privacyShutdownStore === true) {
-            const userMicrophonePrivacySetting = localUserStore.getMicrophonePrivacySettings();
-            const userCameraPrivacySetting = localUserStore.getCameraPrivacySettings();
             if (!userMicrophonePrivacySetting) {
                 currentAudioConstraint = false;
             }
@@ -434,13 +434,17 @@ export const mediaStreamConstraintsStore = derived(
 
         // Disable webcam for energy reasons (the user is not moving and we are talking to no one)
         if ($cameraEnergySavingStore === true && $enableCameraSceneVisibilityStore === false) {
-            currentVideoConstraint = false;
-            currentAudioConstraint = false;
+            if (!userCameraPrivacySetting) {
+                currentVideoConstraint = false;
+            }
+            if (!userMicrophonePrivacySetting) {
+                currentAudioConstraint = false;
+            }
         }
 
         if (
             $availabilityStatusStore === AvailabilityStatus.DENY_PROXIMITY_MEETING ||
-            //$availabilityStatusStore === AvailabilityStatus.SILENT ||
+            $availabilityStatusStore === AvailabilityStatus.SILENT ||
             $availabilityStatusStore === AvailabilityStatus.SPEAKER
         ) {
             currentVideoConstraint = false;
